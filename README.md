@@ -1,2 +1,1 @@
-# osb
-Ozone Snapshot Benchmark
+# Ozone Snapshot POC
