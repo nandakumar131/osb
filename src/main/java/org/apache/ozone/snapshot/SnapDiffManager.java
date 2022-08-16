@@ -32,6 +32,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.ozone.snapshot.OMSSTFileReader.ClosableIterator;
+
 public class SnapDiffManager {
 
   private final SnapshotDBHandler snapshotDBHandler;
@@ -58,7 +60,8 @@ public class SnapDiffManager {
     //  new snapshot creation time.
 
     // Keys that might have changed.
-    final Set<String> keysToCheck = getsKeysToCheck(oldSnapshot, newSnapshot);
+    final ClosableIterator<String> keysToCheck =
+        getsKeysToCheck(oldSnapshot, newSnapshot);
 
     // Open RocksDB and check for the keys.
     final Table<String, OmKeyInfo> oldKeyTable = oldOMDb.getKeyTable();
@@ -79,8 +82,9 @@ public class SnapDiffManager {
 
     final Set<Long> filteredObjectIDsToCheck = new HashSet<>();
 
-    // TODO: Replace this with multiGet.
-    for(String key : keysToCheck) {
+    while(keysToCheck.hasNext()) {
+      final String key = keysToCheck.next();
+      // TODO: Replace this with multiGet.
       final OmKeyInfo oldKey = oldKeyTable.get(key);
       final OmKeyInfo newKey = newKeyTable.get(key);
       if(areKeysEqual(oldKey, newKey)) {
@@ -89,15 +93,16 @@ public class SnapDiffManager {
       }
       if (oldKey != null) {
         final long oldObjId = oldKey.getObjectID();
-        oldObjIdToKeyMap.put(oldObjId, key);
+        oldObjIdToKeyMap.put(oldObjId, oldKey.getKeyName());
         filteredObjectIDsToCheck.add(oldObjId);
       }
       if (newKey != null) {
-        final long newObjId = oldKey.getObjectID();
-        newObjIdToKeyMap.put(newObjId, key);
+        final long newObjId = newKey.getObjectID();
+        newObjIdToKeyMap.put(newObjId, newKey.getKeyName());
         filteredObjectIDsToCheck.add(newObjId);
       }
     }
+    keysToCheck.close();
 
     for (Long id : filteredObjectIDsToCheck) {
       /*
@@ -114,34 +119,34 @@ public class SnapDiffManager {
        *    name and same Object ID.
        */
 
-      final OmKeyInfo oldKey = oldKeyTable.get(oldObjIdToKeyMap.get(id));
-      final OmKeyInfo newKey = newKeyTable.get(newObjIdToKeyMap.get(id));
+      final String oldKeyName = oldObjIdToKeyMap.get(id);
+      final String newKeyName = newObjIdToKeyMap.get(id);
 
-      if (oldKey == null && newKey == null) {
+      if (oldKeyName == null && newKeyName == null) {
         // This cannot happen.
         continue;
       }
 
       // Key Created.
-      if (oldKey == null) {
-        createDiffs.add("+ " + newKey.getKeyName());
+      if (oldKeyName == null) {
+        createDiffs.add("+ " + newKeyName);
         continue;
       }
 
       // Key Deleted.
-      if(newKey == null) {
-        deleteDiffs.add("- " + oldKey.getKeyName());
+      if(newKeyName == null) {
+        deleteDiffs.add("- " + oldKeyName);
         continue;
       }
 
       // Key modified.
-      if(oldKey.getKeyName().equals(newKey.getKeyName())) {
-        modifyDiffs.add("M " + oldKey.getKeyName());
+      if(oldKeyName.equals(newKeyName)) {
+        modifyDiffs.add("M " + newKeyName);
         continue;
       }
 
       // Key Renamed.
-      renameDiffs.add("R " + oldKey.getKeyName() + " -> " + newKey.getKeyName());
+      renameDiffs.add("R " + oldKeyName + " -> " + newKeyName);
     }
     oldKeyTable.close();
     newKeyTable.close();
@@ -201,8 +206,8 @@ public class SnapDiffManager {
     return false;
   }
 
-  private Set<String> getsKeysToCheck(final String oldSnapshot,
-                               final String newSnapshot)
+  private ClosableIterator<String> getsKeysToCheck(final String oldSnapshot,
+                                                   final String newSnapshot)
       throws RocksDBException {
     final List<LiveFileMetaData> oldSsSstFiles = snapshotDBHandler
         .getKeyTableSSTFiles(oldSnapshot);
@@ -231,17 +236,12 @@ public class SnapDiffManager {
         .parallel().filter(file -> !filesToIgnore.contains(file))
         .collect(Collectors.toSet());
 
-    // TODO: Replace this with iterator to reduce memory usage.
-    final Set<String> keysToCheck = new HashSet<>();
+    final Set<LiveFileMetaData> filteredFiles = new HashSet<>();
+    filteredFiles.addAll(filteredOldSstFiles);
+    filteredFiles.addAll(filteredNewSstFiles);
 
-    for (final LiveFileMetaData file : filteredOldSstFiles) {
-      keysToCheck.addAll(OMSSTFileReader.getKeys(file));
-    }
-
-    for (final LiveFileMetaData file : filteredNewSstFiles) {
-      keysToCheck.addAll(OMSSTFileReader.getKeys(file));
-    }
-    return keysToCheck;
+    OMSSTFileReader sstFileReader = new OMSSTFileReader(filteredFiles);
+    return sstFileReader.getKeyIterator();
   }
 
 }
