@@ -1,48 +1,37 @@
-package org.apache.ozone.rocksdb;
+package org.apache.ozone.snapshot;
 
 import com.sun.tools.javac.util.List;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
+import org.apache.hadoop.hdds.client.ReplicationFactor;
 import org.apache.hadoop.hdds.client.ReplicationType;
-import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.OzoneAcl;
-import org.apache.hadoop.ozone.om.OMConfigKeys;
-import org.apache.hadoop.ozone.om.OMMetadataManager;
-import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
-import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.UUID;
 
 public class OMKeyTableWriter {
 
-    private OMMetadataManager omMetadataManager;
-    private OzoneConfiguration configuration;
+    OMDB omdb;
     private Table<String, OmKeyInfo> keyTable;
 
     private String volume;
     private String bucket;
 
-    public OMKeyTableWriter(String dbLocation) throws IOException {
-        this.configuration = getOzoneConfiguration();
-        this.configuration.set(OMConfigKeys.OZONE_OM_DB_DIRS, dbLocation);
-        this.omMetadataManager = new OmMetadataManagerImpl(configuration);
-        this.keyTable = omMetadataManager.getKeyTable(BucketLayout.OBJECT_STORE);
-
+    public OMKeyTableWriter(OMDB omdb) throws IOException {
+        this.omdb = omdb;
+        this.keyTable = omdb.getKeyTable();
         this.volume = "movies";
         this.bucket = "hollywood";
     }
 
-    private OzoneConfiguration getOzoneConfiguration() {
-        final OzoneConfiguration conf = new OzoneConfiguration();
-        conf.set(OMConfigKeys.OZONE_OM_RATIS_ENABLE_KEY, "false");
-        return conf;
-    }
+
 
     public void generate() throws Exception {
         TarArchiveInputStream tarInput = new TarArchiveInputStream(
@@ -61,8 +50,16 @@ public class OMKeyTableWriter {
             }
             currentEntry = tarInput.getNextTarEntry();
         }
-        keyTable.close();
-        omMetadataManager.stop();
+    }
+
+    public void generateRandom(int numKeys) throws Exception {
+        for (int i = 0; i < numKeys; i++) {
+            String key =  "/" + volume + "/" + bucket + "/" + UUID.randomUUID();
+            keyTable.put(key, getKeyInfo(key));
+            if(i % 1_000_000 == 0) {
+                System.out.println("Generated " + i + " keys");
+            }
+        }
     }
 
     private OmKeyInfo getKeyInfo(final String key) {
@@ -73,9 +70,14 @@ public class OMKeyTableWriter {
                 .setDataSize(10000000)
                 .setCreationTime(System.currentTimeMillis())
                 .setModificationTime(System.currentTimeMillis())
-                .setReplicationConfig(ReplicationConfig.parse(
-                        ReplicationType.RATIS,"THREE", configuration))
+                .setReplicationConfig(ReplicationConfig.fromTypeAndFactor(
+                        ReplicationType.RATIS, ReplicationFactor.THREE))
                 .setAcls(List.of(OzoneAcl.parseAcl("user:imdb:rw")));
         return builder.build();
+    }
+
+    public void close() throws Exception {
+        keyTable.close();
+        omdb.close();
     }
 }

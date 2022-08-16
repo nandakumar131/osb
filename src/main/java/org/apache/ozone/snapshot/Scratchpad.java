@@ -1,4 +1,4 @@
-package org.apache.ozone.rocksdb;
+package org.apache.ozone.snapshot;
 
 import org.rocksdb.*;
 
