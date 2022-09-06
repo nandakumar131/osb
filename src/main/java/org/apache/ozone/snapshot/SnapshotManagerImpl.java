@@ -19,8 +19,12 @@
 
 package org.apache.ozone.snapshot;
 
+import java.io.File;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class SnapshotManagerImpl implements SnapshotManager {
 
@@ -35,8 +39,11 @@ public class SnapshotManagerImpl implements SnapshotManager {
   }
 
   public List<String> getAllSnapshots(final String volume, final String bucket) {
-    // TODO: Implement the logic for getting all snapshots.
-    return Collections.emptyList();
+    // For now ignoring volume and bucket names.
+    final File fileName = new File(checkpointParentDir);
+    final File[] fileList = fileName.listFiles();
+    return Arrays.stream(Objects.requireNonNull(fileName.listFiles())).map(File::getName)
+        .collect(Collectors.toList());
   }
 
   public OMDB getOMDB(final String snapshotName)

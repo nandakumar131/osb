@@ -1,6 +1,24 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ *  with the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 package org.apache.ozone.snapshot;
 
-import com.sun.tools.javac.util.List;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
@@ -14,6 +32,7 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Collections;
 import java.util.UUID;
 
 public class OMKeyTableWriter {
@@ -65,19 +84,19 @@ public class OMKeyTableWriter {
     private OmKeyInfo getKeyInfo(final String key) {
         final OmKeyInfo.Builder builder = new OmKeyInfo.Builder();
         builder.setVolumeName(volume)
-                .setBucketName(bucket)
-                .setKeyName(key)
-                .setDataSize(10000000)
-                .setCreationTime(System.currentTimeMillis())
-                .setModificationTime(System.currentTimeMillis())
-                .setReplicationConfig(ReplicationConfig.fromTypeAndFactor(
-                        ReplicationType.RATIS, ReplicationFactor.THREE))
-                .setAcls(List.of(OzoneAcl.parseAcl("user:imdb:rw")));
+            .setBucketName(bucket)
+            .setKeyName(key)
+            .setObjectID(System.currentTimeMillis())
+            .setDataSize(10000000)
+            .setCreationTime(System.currentTimeMillis())
+            .setModificationTime(System.currentTimeMillis())
+            .setReplicationConfig(ReplicationConfig.fromTypeAndFactor(
+                ReplicationType.RATIS, ReplicationFactor.THREE))
+            .setAcls(Collections.singletonList(OzoneAcl.parseAcl("user:imdb:rw")));
         return builder.build();
     }
 
     public void close() throws Exception {
         keyTable.close();
-        omdb.close();
     }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with this
  * work for additional information regarding copyright ownership.  The ASF
@@ -18,14 +18,15 @@
 package org.apache.ozone.snapshot;
 
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.utils.db.DBCheckpoint;
 import org.apache.hadoop.hdds.utils.db.DBProfile;
 import org.apache.hadoop.hdds.utils.db.DBStore;
 import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
 import org.apache.hadoop.hdds.utils.db.RocksDBConfiguration;
 import org.apache.hadoop.hdds.utils.db.Table;
+import org.apache.hadoop.hdds.utils.db.managed.ManagedDBOptions;
 import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
-import org.rocksdb.DBOptions;
 
 import java.io.File;
 import java.io.IOException;
@@ -53,7 +54,7 @@ public class OMDBReadOnly implements OMDB {
     DBProfile dbProfile = configuration.getEnum(HDDS_DB_PROFILE,
         HDDS_DEFAULT_DB_PROFILE);
 
-    DBOptions dBOptions = dbProfile.getDBOptions();
+    ManagedDBOptions dBOptions = dbProfile.getDBOptions();
 
     DBStoreBuilder dbStoreBuilder = DBStoreBuilder.newBuilder(configuration,
             rocksDBConfiguration)
@@ -67,6 +68,11 @@ public class OMDBReadOnly implements OMDB {
   @Override
   public Table<String, OmKeyInfo> getKeyTable() throws IOException {
     return dbStore.getTable(KEY_TABLE, String.class, OmKeyInfo.class);
+  }
+
+  @Override
+  public DBCheckpoint createSnapshot(String name) throws IOException {
+    throw new UnsupportedOperationException("Not supported");
   }
 
   @Override

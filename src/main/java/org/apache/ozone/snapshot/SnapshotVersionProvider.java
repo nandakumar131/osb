@@ -19,17 +19,14 @@
 
 package org.apache.ozone.snapshot;
 
-public class OMDBFactory {
+import picocli.CommandLine;
 
-  public static OMDB createOMDB(String dbLocation) throws Exception {
-    return new OMDBImpl(dbLocation);
-  }
+public class SnapshotVersionProvider implements CommandLine.IVersionProvider {
 
-  public static OMDB createOMDBWithCompactionListener(String dbLocation) throws Exception {
-    return new OMDBWithCompactionListener(dbLocation);
-  }
-
-  public static OMDB createOMDBReadeOnly(String dbLocation, String dbName) throws Exception {
-    return new OMDBReadOnly(dbLocation, dbName);
+  @Override
+  public String[] getVersion() {
+    return new String[] {
+        "Ozone Snapshot: 1.0-SNAPSHOT"
+    };
   }
 }

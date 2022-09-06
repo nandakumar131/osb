@@ -30,7 +30,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.apache.ozone.snapshot.OMSSTFileReader.ClosableIterator;
 
@@ -75,7 +74,6 @@ public class SnapDiffManager {
     /*
      * The reason for having ObjectID to KeyName mapping instead of OmKeyInfo
      * is to reduce the memory footprint.
-     * This will introduce additional DB lookup later on, which should be ok.
      */
     final Map<Long, String> oldObjIdToKeyMap = new HashMap<>();
     final Map<Long, String> newObjIdToKeyMap = new HashMap<>();
@@ -214,33 +212,8 @@ public class SnapDiffManager {
     final List<LiveFileMetaData> newSsSstFiles = snapshotDBHandler
         .getKeyTableSSTFiles(newSnapshot);
 
-    // Ignore same SST files.
-    final List<LiveFileMetaData> identicalFiles = SSTFileComparatorFactory
-        .getFileNameBasedComparator()
-        .getIdenticalFiles(oldSsSstFiles, newSsSstFiles);
-
-
-    // Filter files based on Compaction Aware SSTFile Comparator.
-    final List<LiveFileMetaData> filesWithSameKeys = SSTFileComparatorFactory
-        .getCompactionAwareComparator()
-        .getIdenticalFiles(oldSsSstFiles, newSsSstFiles);
-
-    final Set<LiveFileMetaData> filesToIgnore = new HashSet<>();
-    filesToIgnore.addAll(identicalFiles);
-    filesToIgnore.addAll(filesWithSameKeys);
-    final Set<LiveFileMetaData> filteredOldSstFiles = oldSsSstFiles.stream()
-        .parallel().filter(file -> !filesToIgnore.contains(file))
-        .collect(Collectors.toSet());
-
-    final Set<LiveFileMetaData> filteredNewSstFiles = newSsSstFiles.stream()
-        .parallel().filter(file -> !filesToIgnore.contains(file))
-        .collect(Collectors.toSet());
-
-    final Set<LiveFileMetaData> filteredFiles = new HashSet<>();
-    filteredFiles.addAll(filteredOldSstFiles);
-    filteredFiles.addAll(filteredNewSstFiles);
-
-    OMSSTFileReader sstFileReader = new OMSSTFileReader(filteredFiles);
+    OMSSTFileReader sstFileReader = new OMSSTFileReader(
+        SstFileFilter.getDeltaFiles(oldSsSstFiles, newSsSstFiles));
     return sstFileReader.getKeyIterator();
   }
 

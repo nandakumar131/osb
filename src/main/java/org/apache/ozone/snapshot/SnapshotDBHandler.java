@@ -41,6 +41,13 @@ public class SnapshotDBHandler {
     this.checkpointParentDir = checkpointParentDir;
   }
 
+  public long getKeyCount(String snapshotName) throws Exception {
+    final RDBHelper rdbHelper = new RDBHelper(checkpointParentDir + "/" + snapshotName);
+    long count = rdbHelper.getKeyCount();
+    rdbHelper.close();
+    return count;
+  }
+
   public OMDB getOMDB(String snapshotName)
       throws Exception {
     return OMDBFactory.createOMDBReadeOnly(checkpointParentDir, snapshotName);
