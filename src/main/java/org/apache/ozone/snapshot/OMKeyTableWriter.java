@@ -33,6 +33,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Collections;
+import java.util.Random;
 import java.util.UUID;
 
 public class OMKeyTableWriter {
@@ -46,8 +47,8 @@ public class OMKeyTableWriter {
     public OMKeyTableWriter(OMDB omdb) throws IOException {
         this.omdb = omdb;
         this.keyTable = omdb.getKeyTable();
-        this.volume = "movies";
-        this.bucket = "hollywood";
+        this.volume = "volume";
+        this.bucket = "bucket";
     }
 
 
@@ -71,9 +72,9 @@ public class OMKeyTableWriter {
         }
     }
 
-    public void generateRandom(int numKeys) throws Exception {
+    public void generateRandom(int numVolumes,int numBuckets,int numKeys) throws Exception {
         for (int i = 0; i < numKeys; i++) {
-            String key =  "/" + volume + "/" + bucket + "/" + UUID.randomUUID();
+            String key =  "/" + volume + i%numVolumes +  "/" + bucket + i%numBuckets +  "/" + UUID.randomUUID();
             keyTable.put(key, getKeyInfo(key));
             if(i % 1_000_000 == 0) {
                 System.out.println("Generated " + i + " keys");
@@ -86,7 +87,7 @@ public class OMKeyTableWriter {
         builder.setVolumeName(volume)
             .setBucketName(bucket)
             .setKeyName(key)
-            .setObjectID(System.currentTimeMillis())
+            .setObjectID(new Random().nextLong())
             .setDataSize(10000000)
             .setCreationTime(System.currentTimeMillis())
             .setModificationTime(System.currentTimeMillis())

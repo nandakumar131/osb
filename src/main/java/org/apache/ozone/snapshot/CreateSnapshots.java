@@ -44,7 +44,15 @@ public class CreateSnapshots implements Runnable {
 
   @CommandLine.Option(names = {"-k", "--keysPerSnapshot"},
       description = "Number of keys per Snapshot.")
-  private int keyCount = 100000;
+  private int keyCount = 1000;
+
+  @CommandLine.Option(names = {"-nv", "--volumes"},
+      description = "Number of Volumes")
+  private int numVolumes = 3;
+
+  @CommandLine.Option(names = {"-nb", "--buckets"},
+      description = "Number of Volumes")
+  private int numBuckets = 5;
 
   private static CreateSnapshots getInstance() {
     return new CreateSnapshots();
@@ -60,7 +68,7 @@ public class CreateSnapshots implements Runnable {
       final OzoneManager ozoneManager = new OzoneManager(path);
       OMKeyTableWriter keyTableWriter = ozoneManager.getKeyTableWriter();
       for (int i = 0; i < nos; i++) {
-        keyTableWriter.generateRandom(keyCount);
+        keyTableWriter.generateRandom(numVolumes,numBuckets,keyCount);
         ozoneManager.getOMDB().createSnapshot(UUID.randomUUID().toString());
       }
 

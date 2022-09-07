@@ -33,6 +33,8 @@ import java.util.Set;
 
 import org.apache.ozone.snapshot.OMSSTFileReader.ClosableIterator;
 
+import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
+
 public class SnapDiffManager {
 
   private final SnapshotDBHandler snapshotDBHandler;
@@ -43,11 +45,13 @@ public class SnapDiffManager {
 
 
   public List<String> getSnapshotDiff(final String volumeName,
-                                      final String BucketName,
+                                      final String bucketName,
                                       final String oldSnapshot,
                                       final String newSnapshot)
       throws Exception {
-    // TODO: Make sure that both snapshot belongs to the same volume and bucket.
+
+    String dbPrefix =
+        OM_KEY_PREFIX + volumeName + OM_KEY_PREFIX + bucketName + OM_KEY_PREFIX;
 
     final OMDB oldOMDb = snapshotDBHandler.getOMDB(oldSnapshot);
     // TODO: Validate volumeName and bucketName
@@ -59,8 +63,23 @@ public class SnapDiffManager {
     //  new snapshot creation time.
 
     // Keys that might have changed.
+    Set<LiveFileMetaData> deltaFiles =
+        getSstFilesToCheck(oldSnapshot, newSnapshot);
+
+    Set<LiveFileMetaData> deltaFilesFilteredByPrefix =
+      new PrefixBasedSstFileFilter(dbPrefix).filter(deltaFiles);
+
+    System.out.println(
+        "Number of SST Files eliminated due to prefix based filtering(volume/bucket): "
+            + (deltaFiles.size() - deltaFilesFilteredByPrefix.size()));
+
+    if (deltaFilesFilteredByPrefix.size() == 0) {
+      throw new RuntimeException(
+          "There are no keys with given prefix " + dbPrefix + "in the Rocksdb");
+    }
+
     final ClosableIterator<String> keysToCheck =
-        getsKeysToCheck(oldSnapshot, newSnapshot);
+        getKeysToCheck(deltaFilesFilteredByPrefix);
 
     // Open RocksDB and check for the keys.
     final Table<String, OmKeyInfo> oldKeyTable = oldOMDb.getKeyTable();
@@ -204,16 +223,18 @@ public class SnapDiffManager {
     return false;
   }
 
-  private ClosableIterator<String> getsKeysToCheck(final String oldSnapshot,
-                                                   final String newSnapshot)
-      throws RocksDBException {
-    final List<LiveFileMetaData> oldSsSstFiles = snapshotDBHandler
-        .getKeyTableSSTFiles(oldSnapshot);
-    final List<LiveFileMetaData> newSsSstFiles = snapshotDBHandler
-        .getKeyTableSSTFiles(newSnapshot);
+  private Set<LiveFileMetaData> getSstFilesToCheck(final String oldSnapshot,
+      final String newSnapshot) throws RocksDBException {
+    final List<LiveFileMetaData> oldSsSstFiles =
+        snapshotDBHandler.getKeyTableSSTFiles(oldSnapshot);
+    final List<LiveFileMetaData> newSsSstFiles =
+        snapshotDBHandler.getKeyTableSSTFiles(newSnapshot);
+    return SstFileUtils.getDeltaFiles(oldSsSstFiles, newSsSstFiles);
+  }
 
-    OMSSTFileReader sstFileReader = new OMSSTFileReader(
-        SstFileFilter.getDeltaFiles(oldSsSstFiles, newSsSstFiles));
+  private ClosableIterator<String> getKeysToCheck(
+      Set<LiveFileMetaData> deltaFiles) throws RocksDBException {
+    OMSSTFileReader sstFileReader = new OMSSTFileReader(deltaFiles);
     return sstFileReader.getKeyIterator();
   }
 
