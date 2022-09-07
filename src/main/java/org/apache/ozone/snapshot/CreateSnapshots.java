@@ -19,11 +19,9 @@
 
 package org.apache.ozone.snapshot;
 
+import com.google.common.base.Preconditions;
 import picocli.CommandLine;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.UUID;
 
 @CommandLine.Command(name="create-snapshots",
@@ -32,6 +30,8 @@ import java.util.UUID;
     mixinStandardHelpOptions = true)
 public class CreateSnapshots implements Runnable {
 
+  public static final double DEFAULT_DELETE_OPS_PERCENT = 0.3;
+  public static final double DEFAULT_RENAME_OPS_PERCENT = 0.3;
   private final CommandLine commandLine;
 
   @CommandLine.Option(names = {"-p", "--dbPath"},
@@ -44,7 +44,7 @@ public class CreateSnapshots implements Runnable {
 
   @CommandLine.Option(names = {"-k", "--keysPerSnapshot"},
       description = "Number of keys per Snapshot.")
-  private int keyCount = 1000;
+  private int keyCount = 100000;
 
   @CommandLine.Option(names = {"-nv", "--volumes"},
       description = "Number of Volumes")
@@ -53,6 +53,15 @@ public class CreateSnapshots implements Runnable {
   @CommandLine.Option(names = {"-nb", "--buckets"},
       description = "Number of Volumes")
   private int numBuckets = 5;
+
+  @CommandLine.Option(names = {"-do", "--deletes"},
+      description = "Percentage of Delete operations in consecutive snapshots")
+  private double deleteOps= DEFAULT_DELETE_OPS_PERCENT;
+
+  @CommandLine.Option(names = {"-ro", "--renames"},
+      description = "Percentage of Rename operations in consecutive snapshots")
+  private double renameOps= DEFAULT_RENAME_OPS_PERCENT;
+
 
   private static CreateSnapshots getInstance() {
     return new CreateSnapshots();
@@ -64,18 +73,58 @@ public class CreateSnapshots implements Runnable {
 
   @Override
   public void run() {
+    if (!validateOpsPercentage(deleteOps,renameOps)){
+      // fallback to defaults
+      fallbackToDefaultPercentages();
+    }
     try {
       final OzoneManager ozoneManager = new OzoneManager(path);
       OMKeyTableWriter keyTableWriter = ozoneManager.getKeyTableWriter();
-      for (int i = 0; i < nos; i++) {
-        keyTableWriter.generateRandom(numVolumes,numBuckets,keyCount);
-        ozoneManager.getOMDB().createSnapshot(UUID.randomUUID().toString());
+      createKeysAndTakeSnapshot(ozoneManager, keyTableWriter);
+      for (int i = 0; i < nos-1 ; i++) {
+        performOpsAndTakeSnapshot(ozoneManager, keyTableWriter);
       }
-
       ozoneManager.close();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  private void fallbackToDefaultPercentages() {
+    deleteOps = DEFAULT_DELETE_OPS_PERCENT;
+    renameOps = DEFAULT_RENAME_OPS_PERCENT;
+  }
+
+  private void performOpsAndTakeSnapshot(OzoneManager ozoneManager,
+      OMKeyTableWriter keyTableWriter) throws Exception {
+    double createOps = 1-(deleteOps+renameOps);
+    // First perform deletes
+    keyTableWriter.deleteKeys(deleteOps,keyCount);
+
+    //Now renames
+    keyTableWriter.renameKeys(renameOps,keyCount);
+
+    //Creates
+    int numKeyCreates = (int)Math.ceil(createOps*keyCount);
+    keyTableWriter.generateRandom(numVolumes,numBuckets,numKeyCreates);
+    // take snapshot
+    ozoneManager.getOMDB().createSnapshot(UUID.randomUUID().toString());
+  }
+
+  private void createKeysAndTakeSnapshot(OzoneManager ozoneManager,
+      OMKeyTableWriter keyTableWriter) throws Exception {
+    keyTableWriter.generateRandom(numVolumes,numBuckets,keyCount);
+    ozoneManager.getOMDB().createSnapshot(UUID.randomUUID().toString());
+  }
+
+  private boolean validateOpsPercentage(double deleteOps, double renameOps) {
+    if (!(deleteOps + renameOps <= 1)){
+      return false;
+    }
+    double createOps = 1 -(deleteOps+renameOps);
+    Preconditions.checkArgument(deleteOps<renameOps+createOps
+        ,"Deletes must be less than the sum of renames & creates");
+    return true;
   }
 
   private int execute(final String[] args) {
