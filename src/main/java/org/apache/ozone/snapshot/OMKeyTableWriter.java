@@ -19,6 +19,7 @@
 
 package org.apache.ozone.snapshot;
 
+import com.google.common.base.Preconditions;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
@@ -26,6 +27,7 @@ import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationFactor;
 import org.apache.hadoop.hdds.client.ReplicationType;
 import org.apache.hadoop.hdds.utils.db.Table;
+import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 
@@ -33,6 +35,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Collections;
+import java.util.Random;
 import java.util.UUID;
 
 public class OMKeyTableWriter {
@@ -46,8 +49,8 @@ public class OMKeyTableWriter {
     public OMKeyTableWriter(OMDB omdb) throws IOException {
         this.omdb = omdb;
         this.keyTable = omdb.getKeyTable();
-        this.volume = "movies";
-        this.bucket = "hollywood";
+        this.volume = "volume";
+        this.bucket = "bucket";
     }
 
 
@@ -71,13 +74,55 @@ public class OMKeyTableWriter {
         }
     }
 
-    public void generateRandom(int numKeys) throws Exception {
+    public void generateRandom(int numVolumes,int numBuckets,int numKeys) throws Exception {
         for (int i = 0; i < numKeys; i++) {
-            String key =  "/" + volume + "/" + bucket + "/" + UUID.randomUUID();
+            String key =  "/" + volume + i%numVolumes +  "/" + bucket + i%numBuckets +  "/" + UUID.randomUUID();
             keyTable.put(key, getKeyInfo(key));
             if(i % 1_000_000 == 0) {
                 System.out.println("Generated " + i + " keys");
             }
+        }
+    }
+
+    public void deleteKeys(double deletePercent,int numKeys) throws IOException {
+        long estimatedKeyCount = keyTable.getEstimatedKeyCount();
+        long numDeletes = (long) Math.floor (numKeys*deletePercent);
+        Preconditions.checkArgument(numKeys!=0);
+        Preconditions.checkArgument(numDeletes<=numKeys);
+        Preconditions.checkArgument(numDeletes<=estimatedKeyCount);
+        int deleteCount = 0;
+        TableIterator<String, ? extends Table.KeyValue<String, OmKeyInfo>>
+            keyTableIterator = keyTable.iterator();
+        keyTableIterator.seekToFirst();
+        while (keyTableIterator.hasNext() && deleteCount<=numDeletes){
+            Table.KeyValue<String, OmKeyInfo> curKey = keyTableIterator.next();
+            keyTable.delete(curKey.getKey());
+            deleteCount++;
+        }
+    }
+
+    public void renameKeys(double renamePercent,int numKeys) throws IOException {
+        long estimatedKeyCount = keyTable.getEstimatedKeyCount();
+        long numRenames = (long) Math.floor (numKeys*renamePercent);
+        Preconditions.checkArgument(numKeys!=0);
+        Preconditions.checkArgument(numRenames<=numKeys);
+        // the below is a workaround to test pure rename workload
+        // On testing found that estimatedKeyCount was always less than total Keycount.
+        if (renamePercent!=1) {
+         Preconditions.checkArgument(numRenames <= estimatedKeyCount);
+        }
+        int renameCount = 0;
+        TableIterator<String, ? extends Table.KeyValue<String, OmKeyInfo>>
+            keyTableIterator = keyTable.iterator();
+        keyTableIterator.seekToFirst();
+        while (keyTableIterator.hasNext() && renameCount<=numRenames){
+            Table.KeyValue<String, OmKeyInfo> curKey = keyTableIterator.next();
+            String key = curKey.getKey();
+            OmKeyInfo value = curKey.getValue();
+            value.setKeyName(value.getKeyName() + "_renamed");
+            keyTable.delete(key);
+            keyTable.put(key,value);
+            renameCount++;
         }
     }
 
@@ -86,7 +131,7 @@ public class OMKeyTableWriter {
         builder.setVolumeName(volume)
             .setBucketName(bucket)
             .setKeyName(key)
-            .setObjectID(System.currentTimeMillis())
+            .setObjectID(new Random().nextLong())
             .setDataSize(10000000)
             .setCreationTime(System.currentTimeMillis())
             .setModificationTime(System.currentTimeMillis())

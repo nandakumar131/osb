@@ -16,53 +16,14 @@
  * limitations under the License.
  *
  */
-
 package org.apache.ozone.snapshot;
 
 import org.rocksdb.LiveFileMetaData;
 
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
-public class SstFileFilter {
+public abstract class SstFileFilter {
 
-  /**
-   * Filters out similar files and returns only the files that are different.
-   * @param oldSnapshotFiles
-   * @param newSnapshotFiles
-   * @return new files created after the creation of old snapshot.
-   */
-  public static Set<LiveFileMetaData> getDeltaFiles(
-      List<LiveFileMetaData> oldSnapshotFiles,
-      List<LiveFileMetaData> newSnapshotFiles) {
-    // Ignore same SST files.
-    final List<LiveFileMetaData> identicalFiles = SSTFileComparatorFactory
-        .getFileNameBasedComparator()
-        .getIdenticalFiles(oldSnapshotFiles, newSnapshotFiles);
+  abstract Set<LiveFileMetaData> filter(Set<LiveFileMetaData> inputFiles);
 
-
-    // Filter files based on Compaction Aware SSTFile Comparator.
-    final List<LiveFileMetaData> filesWithSameKeys = SSTFileComparatorFactory
-        .getCompactionAwareComparator()
-        .getIdenticalFiles(oldSnapshotFiles, newSnapshotFiles);
-
-    final Set<LiveFileMetaData> filesToIgnore = new HashSet<>();
-    filesToIgnore.addAll(identicalFiles);
-    filesToIgnore.addAll(filesWithSameKeys);
-    final Set<LiveFileMetaData> filteredOldSstFiles = oldSnapshotFiles.stream()
-        .parallel().filter(file -> !filesToIgnore.contains(file))
-        .collect(Collectors.toSet());
-
-    final Set<LiveFileMetaData> filteredNewSstFiles = newSnapshotFiles.stream()
-        .parallel().filter(file -> !filesToIgnore.contains(file))
-        .collect(Collectors.toSet());
-
-    final Set<LiveFileMetaData> filteredFiles = new HashSet<>();
-    filteredFiles.addAll(filteredOldSstFiles);
-    filteredFiles.addAll(filteredNewSstFiles);
-
-    return filteredFiles;
-  }
 }

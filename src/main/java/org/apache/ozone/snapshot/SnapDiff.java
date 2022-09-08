@@ -19,7 +19,14 @@
 
 package org.apache.ozone.snapshot;
 
+import org.apache.hadoop.ozone.shell.OzoneAddress;
+import org.apache.hadoop.ozone.shell.bucket.BucketUri;
 import picocli.CommandLine;
+
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.List;
 
 @CommandLine.Command(name="snap-diff",
     description = "Command to generate ozone snapshot diffs.",
@@ -41,9 +48,12 @@ public class SnapDiff implements Runnable {
       description = "New snapshot against which snap-diff should be calculated.")
   private String to;
 
-  private static SnapDiff getInstance() {
-    return new SnapDiff();
-  }
+  @CommandLine.Option(names = {"-b", "--bucket"},
+      description = "Bucket to which both the from & to snapshot"
+          + " corresponds. Format: 'volume/bucket' ",
+      converter = BucketUri.class,
+      required = true)
+  private OzoneAddress bucket;
 
   private SnapDiff() {
     this.commandLine = new CommandLine(this);
@@ -53,22 +63,31 @@ public class SnapDiff implements Runnable {
   public void run() {
     try {
       final OzoneManager ozoneManager = new OzoneManager(path);
-      ozoneManager.getSnapshotManager().getSnapshotDiffManager()
-          .getSnapshotDiff(null, null, from, to).forEach(System.out::println);
+      String volumeName = bucket.getVolumeName();
+      String bucketName = bucket.getBucketName();
+      writeSnapDiffToFile(
+          ozoneManager.getSnapshotManager().getSnapshotDiffManager()
+              .getSnapshotDiff(volumeName, bucketName, from, to));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }  }
+
+  private void writeSnapDiffToFile(List<String> snapshotDiff)
+      throws IOException {
+    String fileName = path + "/" + from + "--" + to + ".diff";
+    FileWriter writer = new FileWriter(fileName);
+    BufferedWriter buffer = new BufferedWriter(writer);
+    for (String line : snapshotDiff) {
+      buffer.write(line);
+      buffer.newLine();
+    }
+    buffer.close();
+    System.out.println("Snap diff File : " + fileName);
+  }
 
   private int execute(final String[] args) {
     return commandLine.execute(args);
   }
 
-  public static void main(final String[] args) {
-    SnapDiff snapDiff = getInstance();
-    snapDiff.path = "/Users/nvadivelu/Workspace/data/";
-    snapDiff.from = "om.dbf9e9e4a6-02f3-4535-924e-adf6f26e3275";
-    snapDiff.to = "om.db971efa7d-2892-4813-8a61-5f1527308b6d";
-    snapDiff.run();
-  }
 
 }

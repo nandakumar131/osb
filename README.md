@@ -1,4 +1,6 @@
 # Ozone Snapshot POC
+Requirements
+1. It is required to have compiled code from apache/ozone (apache:HDDS-6517-Snapshot branch)
 
 ## How to build and Run?
 1. Clone the code
