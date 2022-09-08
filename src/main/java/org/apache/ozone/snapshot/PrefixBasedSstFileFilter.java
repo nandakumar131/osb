@@ -44,10 +44,6 @@ public class PrefixBasedSstFileFilter extends SstFileFilter {
       String lastDbKey = getDbKey(new String(fileMetaData.largestKey()));
       String dbPath = fileMetaData.path()  + fileMetaData.fileName();
 
-      System.out.println("First Key = " + firstDbKey);
-      System.out.println("Last Key = " + lastDbKey);
-      System.out.println("Prefix= " + prefix);
-
 
       if (firstDbKey.compareTo(prefix) <= 0
           && prefix.compareTo(lastDbKey) <= 0) {

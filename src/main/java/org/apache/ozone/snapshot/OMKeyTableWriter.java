@@ -103,9 +103,7 @@ public class OMKeyTableWriter {
 
     public void renameKeys(double renamePercent,int numKeys) throws IOException {
         long estimatedKeyCount = keyTable.getEstimatedKeyCount();
-        System.out.println("Estimated key count :" + estimatedKeyCount);
         long numRenames = (long) Math.floor (numKeys*renamePercent);
-        System.out.println("Renames :" + numRenames);
         Preconditions.checkArgument(numKeys!=0);
         Preconditions.checkArgument(numRenames<=numKeys);
         // the below is a workaround to test pure rename workload

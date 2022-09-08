@@ -23,6 +23,11 @@ import org.apache.hadoop.ozone.shell.OzoneAddress;
 import org.apache.hadoop.ozone.shell.bucket.BucketUri;
 import picocli.CommandLine;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.List;
+
 @CommandLine.Command(name="snap-diff",
     description = "Command to generate ozone snapshot diffs.",
     versionProvider = SnapshotVersionProvider.class,
@@ -60,11 +65,25 @@ public class SnapDiff implements Runnable {
       final OzoneManager ozoneManager = new OzoneManager(path);
       String volumeName = bucket.getVolumeName();
       String bucketName = bucket.getBucketName();
-      ozoneManager.getSnapshotManager().getSnapshotDiffManager()
-          .getSnapshotDiff(volumeName, bucketName, from, to).forEach(System.out::println);
+      writeSnapDiffToFile(
+          ozoneManager.getSnapshotManager().getSnapshotDiffManager()
+              .getSnapshotDiff(volumeName, bucketName, from, to));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }  }
+
+  private void writeSnapDiffToFile(List<String> snapshotDiff)
+      throws IOException {
+    String fileName = path + "/" + from + "--" + to + ".diff";
+    FileWriter writer = new FileWriter(fileName);
+    BufferedWriter buffer = new BufferedWriter(writer);
+    for (String line : snapshotDiff) {
+      buffer.write(line);
+      buffer.newLine();
+    }
+    buffer.close();
+    System.out.println("Snap diff File : " + fileName);
+  }
 
   private int execute(final String[] args) {
     return commandLine.execute(args);
