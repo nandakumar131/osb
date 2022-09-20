@@ -157,7 +157,7 @@ public class SnapDiffManager {
       }
 
       // Key modified.
-      if(!oldKeyName.equals(newKeyName)) {
+      if(oldKeyName.equals(newKeyName)) {
         modifyDiffs.add("M " + newKeyName);
         continue;
       }

@@ -24,6 +24,7 @@ import org.apache.hadoop.ozone.shell.bucket.BucketUri;
 import picocli.CommandLine;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.List;
@@ -70,11 +71,12 @@ public class SnapDiff implements Runnable {
               .getSnapshotDiff(volumeName, bucketName, from, to));
     } catch (Exception e) {
       throw new RuntimeException(e);
-    }  }
+    }
+  }
 
   private void writeSnapDiffToFile(List<String> snapshotDiff)
       throws IOException {
-    String fileName = path + "/" + from + "--" + to + ".diff";
+    String fileName = path + File.separator + from + "--" + to + ".diff";
     FileWriter writer = new FileWriter(fileName);
     BufferedWriter buffer = new BufferedWriter(writer);
     for (String line : snapshotDiff) {
